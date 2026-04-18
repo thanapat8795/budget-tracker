@@ -269,6 +269,28 @@
     min-width: 140px;
   }
 
+  .sync-btn {
+    margin-top: 8px;
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    color: var(--accent2);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    transition: all 0.2s;
+  }
+
+  .sync-btn:hover { border-color: var(--accent2); background: var(--surface); }
+  .sync-btn:active { opacity: 0.7; }
+  .sync-btn.syncing { color: var(--warn); border-color: var(--warn); }
+  .sync-btn.success { color: var(--accent2); border-color: var(--accent2); }
+  .sync-btn.error { color: var(--danger); border-color: var(--danger); }
+
   .sync-badge {
     font-family: var(--mono);
     font-size: 10px;
@@ -630,6 +652,7 @@
         <div class="label">Total Spent</div>
         <div class="amount" id="totalSpent">฿0</div>
       </div>
+      <button class="sync-btn" onclick="manualSync()" id="syncBtn">⟳ Sync</button>
     </div>
   </div>
 
@@ -776,6 +799,29 @@ function setSyncStatus(state, msg) {
   el.style.color = colors[state];
   if (state === 'syncing') el.style.animation = 'spin 1s linear infinite';
   else el.style.animation = 'none';
+}
+
+async function manualSync() {
+  const btn = document.getElementById('syncBtn');
+  btn.textContent = '⟳ Syncing...';
+  btn.className = 'sync-btn syncing';
+  btn.disabled = true;
+
+  const sheetData = await pullFromSheets();
+  if (sheetData && sheetData.length > 0) {
+    btn.textContent = '✓ Synced!';
+    btn.className = 'sync-btn success';
+    render();
+  } else {
+    btn.textContent = '✕ Failed';
+    btn.className = 'sync-btn error';
+  }
+
+  setTimeout(() => {
+    btn.textContent = '⟳ Sync';
+    btn.className = 'sync-btn';
+    btn.disabled = false;
+  }, 2500);
 }
 
 // ─── PUSH TO SHEETS ───────────────────────────────────────────
