@@ -276,6 +276,18 @@
     margin-top: 2px;
   }
 
+  .total-badge .budget-remaining {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+  .total-badge .budget-remaining.ok { color: var(--accent2); }
+  .total-badge .budget-remaining.warn { color: var(--warn); }
+  .total-badge .budget-remaining.over { color: var(--danger); }
+
   /* Category card active (filter selected) */
   .budget-card.active-filter {
     border-color: var(--accent);
@@ -777,6 +789,7 @@
         <div class="label">Total Spent / Budget</div>
         <div class="amount" id="totalSpent">฿0</div>
         <div class="budget-total" id="totalBudget">of ฿0</div>
+        <div class="budget-remaining" id="totalRemaining">เหลือ ฿0</div>
       </div>
       <button class="sync-btn" onclick="manualSync()" id="syncBtn">⟳ Sync</button>
     </div>
@@ -1139,6 +1152,15 @@ function renderBudgetGrid() {
 
   document.getElementById('totalSpent').textContent = fmt(totalSpent);
   document.getElementById('totalBudget').textContent = 'of ' + fmt(totalBudget);
+
+  const remaining = totalBudget - totalSpent;
+  const remainPct = totalBudget > 0 ? totalSpent / totalBudget : 0;
+  const remainStatus = remainPct >= 1 ? 'over' : remainPct >= 0.75 ? 'warn' : 'ok';
+  const remainEl = document.getElementById('totalRemaining');
+  remainEl.className = 'budget-remaining ' + remainStatus;
+  remainEl.textContent = remaining >= 0
+    ? 'เหลือ ' + fmt(remaining)
+    : 'เกิน ' + fmt(Math.abs(remaining));
 }
 
 function renderTxList() {
