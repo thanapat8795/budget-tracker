@@ -603,22 +603,27 @@
     border-radius: 10px;
     padding: 12px 16px;
     display: grid;
-    grid-template-columns: 60px 1fr auto auto auto auto;
-    gap: 10px;
+    grid-template-columns: 70px 1fr auto auto auto auto;
+    gap: 12px;
     align-items: center;
     transition: border-color 0.2s;
   }
-
-  .tx-item:hover { border-color: var(--border); }
 
   .tx-date {
     font-family: var(--mono);
     font-size: 11px;
     color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
   }
+
+  .tx-item:hover { border-color: var(--border); }
 
   .tx-detail {
     font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .tx-cat {
@@ -979,8 +984,14 @@ async function pullFromSheets() {
     const res = await fetch(SHEETS_URL);
     const txs = await res.json();
     if (Array.isArray(txs) && txs.length > 0) {
-      localStorage.setItem('transactions', JSON.stringify(txs));
-      localStorage.setItem('seeded_v2', '1'); // skip local seed if sheet has data
+      // Normalize date - strip any ISO timestamp to YYYY-MM-DD
+      const cleaned = txs.map(tx => ({
+        ...tx,
+        date: String(tx.date || '').slice(0, 10),
+        amount: Number(tx.amount) || 0,
+      }));
+      localStorage.setItem('transactions', JSON.stringify(cleaned));
+      localStorage.setItem('seeded_v2', '1');
     }
     setSyncStatus('ok', 'Loaded');
     setTimeout(() => setSyncStatus('idle', 'Google Sheets'), 2000);
@@ -1149,7 +1160,8 @@ function renderTxList() {
     const cat = CATEGORIES.find(c => c.id === tx.cat) || { id: 'unknown', label: tx.cat, icon: '❓', color: '#6b6b8a' };
     const item = document.createElement('div');
     item.className = 'tx-item editable';
-    const dateStr = tx.date.slice(5).replace('-', '/');
+    const dateOnly = String(tx.date || '').slice(0, 10); // YYYY-MM-DD
+    const dateStr = dateOnly.slice(5).replace('-', '/'); // MM/DD
     item.innerHTML = `
       <div class="tx-date">${dateStr}</div>
       <div class="tx-detail">${tx.detail || '—'}</div>
@@ -1738,6 +1750,13 @@ window.addEventListener('resize', () => { if (currentView === 'chart') renderCha
 // ─── INIT: Pull from Sheets → seed if empty → render ─────────
 async function init() {
   currentMonth = '2026-04';
+
+  // Auto-clean any ISO date strings in existing local data
+  const local = loadTransactions();
+  if (local.some(tx => String(tx.date).length > 10)) {
+    const cleaned = local.map(tx => ({ ...tx, date: String(tx.date).slice(0,10) }));
+    localStorage.setItem('transactions', JSON.stringify(cleaned));
+  }
 
   // Show local data immediately (fast render)
   seedInitialData();
