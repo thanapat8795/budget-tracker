@@ -269,6 +269,126 @@
     min-width: 140px;
   }
 
+  .total-badge .budget-total {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* Category card active (filter selected) */
+  .budget-card.active-filter {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 4px 20px rgba(124,106,247,0.25);
+  }
+
+  .budget-card.clickable {
+    cursor: pointer;
+  }
+
+  .add-cat-card {
+    background: transparent;
+    border: 1.5px dashed var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+    cursor: pointer;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    transition: all 0.2s;
+  }
+
+  .add-cat-card:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .add-cat-card .plus {
+    font-size: 28px;
+    margin-bottom: 8px;
+    font-weight: 300;
+  }
+
+  /* Filter banner */
+  .filter-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+
+  .filter-banner .clear-filter {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .filter-banner .clear-filter:hover { color: var(--text); border-color: var(--muted); }
+
+  /* Edit transaction inline */
+  .tx-item.editable:hover { border-color: var(--accent); cursor: pointer; }
+  .edit-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.2s;
+  }
+  .edit-btn:hover { color: var(--accent); }
+
+  /* Cat color preview dots */
+  .color-picker {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    margin-bottom: 8px;
+  }
+
+  .color-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.15s;
+  }
+  .color-dot:hover { transform: scale(1.1); }
+  .color-dot.selected { border-color: var(--text); }
+
+  .modal-field-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 12px;
+    margin-bottom: 4px;
+  }
+
   .sync-btn {
     margin-top: 8px;
     width: 100%;
@@ -483,7 +603,7 @@
     border-radius: 10px;
     padding: 12px 16px;
     display: grid;
-    grid-template-columns: 60px 1fr auto auto;
+    grid-template-columns: 60px 1fr auto auto auto auto;
     gap: 10px;
     align-items: center;
     transition: border-color 0.2s;
@@ -630,7 +750,7 @@
     .add-row .add-btn { grid-column: 2; }
 
     .tx-item {
-      grid-template-columns: 50px 1fr auto;
+      grid-template-columns: 50px 1fr auto auto auto;
       grid-template-rows: auto auto;
     }
     .tx-cat { display: none; }
@@ -649,8 +769,9 @@
     </div>
     <div class="header-right">
       <div class="total-badge">
-        <div class="label">Total Spent</div>
+        <div class="label">Total Spent / Budget</div>
         <div class="amount" id="totalSpent">฿0</div>
+        <div class="budget-total" id="totalBudget">of ฿0</div>
       </div>
       <button class="sync-btn" onclick="manualSync()" id="syncBtn">⟳ Sync</button>
     </div>
@@ -667,6 +788,8 @@
 
   <!-- Dashboard View -->
   <div id="dashboardView">
+    <!-- Filter banner -->
+    <div id="filterBanner" style="display:none"></div>
     <!-- Budget Cards -->
     <div class="budget-grid" id="budgetGrid"></div>
 
@@ -678,13 +801,7 @@
         <input type="date" class="input-field" id="txDate">
       </div>
       <input type="text" class="input-field" id="txDetail" placeholder="รายละเอียด...">
-      <select class="input-field" id="txCat">
-        <option value="food">🍜 Food</option>
-        <option value="vitamin">💊 Vitamin</option>
-        <option value="shopping">🛍️ Shopping</option>
-        <option value="cosmetic">💄 Cosmetic</option>
-        <option value="other">📦 Other</option>
-      </select>
+      <select class="input-field" id="txCat"></select>
       <input type="number" class="input-field" id="txAmount" placeholder="฿ Amount" style="min-width:110px">
       <button class="add-btn" onclick="addTransaction()">+ ADD</button>
     </div>
@@ -726,33 +843,44 @@
 
   <div class="chart-tooltip" id="chartTooltip"></div>
 
-<!-- Edit Budget Modal -->
+<!-- Universal Modal -->
 <div class="modal-overlay" id="modalOverlay" style="display:none" onclick="closeModal(event)">
-  <div class="modal">
-    <h3>// Set Budget</h3>
-    <div id="modalCatName" style="font-size:20px;margin-bottom:12px"></div>
-    <input type="number" class="input-field" id="modalBudgetInput" placeholder="Budget amount (฿)">
-    <div class="modal-row">
-      <button class="cancel-btn" onclick="closeModal()">Cancel</button>
-      <button class="save-btn" onclick="saveBudget()">Save</button>
-    </div>
-  </div>
+  <div class="modal" id="modalContent"></div>
 </div>
 
 <script>
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxTQTiCJ_XT8Y7Q56PtV8c1hZ1FVOVb-9QImim3-sbPIp8fXHmXLJqMQsa1F5OE_5yB/exec';
 
-const CATEGORIES = [
-  { id: 'food',     label: 'Food',     icon: '🍜', defaultBudget: 30000 },
-  { id: 'vitamin',  label: 'Vitamin',  icon: '💊', defaultBudget: 5000  },
-  { id: 'shopping', label: 'Shopping', icon: '🛍️', defaultBudget: 5000  },
-  { id: 'cosmetic', label: 'Cosmetic', icon: '💄', defaultBudget: 5000  },
-  { id: 'other',    label: 'Other',    icon: '📦', defaultBudget: 5000  },
+const DEFAULT_CATEGORIES = [
+  { id: 'food',     label: 'Food',     icon: '🍜', defaultBudget: 30000, color: '#ff8585' },
+  { id: 'vitamin',  label: 'Vitamin',  icon: '💊', defaultBudget: 5000,  color: '#4ecdc4' },
+  { id: 'shopping', label: 'Shopping', icon: '🛍️', defaultBudget: 5000,  color: '#7c6af7' },
+  { id: 'cosmetic', label: 'Cosmetic', icon: '💄', defaultBudget: 5000,  color: '#ff6bb2' },
+  { id: 'other',    label: 'Other',    icon: '📦', defaultBudget: 5000,  color: '#ffd93d' },
 ];
+
+const CUSTOM_COLORS = ['#ff8585','#4ecdc4','#7c6af7','#ff6bb2','#ffd93d','#a78bfa','#60a5fa','#f97316','#10b981','#f43f5e'];
+
+let CATEGORIES = loadCategories();
+
+function loadCategories() {
+  const raw = localStorage.getItem('categories');
+  if (!raw) return [...DEFAULT_CATEGORIES];
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed.length > 0 ? parsed : [...DEFAULT_CATEGORIES];
+  } catch { return [...DEFAULT_CATEGORIES]; }
+}
+
+function saveCategories() {
+  localStorage.setItem('categories', JSON.stringify(CATEGORIES));
+}
 
 // State
 let currentMonth = getMonthKey(new Date());
 let editingCat = null;
+let editingTxId = null;
+let dashboardFilter = 'all';
 let syncTimeout = null;
 
 function getMonthKey(d) {
@@ -906,64 +1034,129 @@ function renderMonthBar() {
   });
 }
 
+function renderCatSelect(selectedId) {
+  const sel = document.getElementById('txCat');
+  sel.innerHTML = '';
+  CATEGORIES.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.icon} ${c.label}`;
+    if (c.id === selectedId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function renderFilterBanner() {
+  const banner = document.getElementById('filterBanner');
+  if (dashboardFilter === 'all') {
+    banner.style.display = 'none';
+    return;
+  }
+  const cat = CATEGORIES.find(c => c.id === dashboardFilter);
+  if (!cat) { dashboardFilter = 'all'; banner.style.display = 'none'; return; }
+  banner.style.display = 'flex';
+  banner.className = 'filter-banner';
+  banner.innerHTML = `
+    <span style="color:${cat.color}">●</span>
+    <span style="color:var(--text)">Filtering by ${cat.icon} ${cat.label}</span>
+    <button class="clear-filter" onclick="clearFilter()">✕ CLEAR</button>
+  `;
+}
+
+function setFilter(catId) {
+  dashboardFilter = (dashboardFilter === catId) ? 'all' : catId;
+  render();
+  // Scroll to transaction log
+  setTimeout(() => {
+    const log = document.querySelector('.log-section');
+    if (log && dashboardFilter !== 'all') log.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function clearFilter() {
+  dashboardFilter = 'all';
+  render();
+}
+
 function renderBudgetGrid() {
   const grid = document.getElementById('budgetGrid');
   const budgets = loadBudgets();
   const spent = getSpentByMonth(currentMonth);
   let totalSpent = 0;
+  let totalBudget = 0;
 
   grid.innerHTML = '';
   CATEGORIES.forEach(cat => {
-    const budget = budgets[cat.id] || cat.defaultBudget;
+    const budget = budgets[cat.id] ?? cat.defaultBudget;
     const s = spent[cat.id] || 0;
     totalSpent += s;
+    totalBudget += budget;
     const pct = budget > 0 ? s / budget : 0;
     const status = getStatus(pct);
     const remaining = budget - s;
+    const isActive = dashboardFilter === cat.id;
 
     const card = document.createElement('div');
-    card.className = 'budget-card';
+    card.className = 'budget-card clickable' + (isActive ? ' active-filter' : '');
+    card.onclick = (e) => {
+      // Don't trigger filter if clicking edit button
+      if (e.target.closest('.edit-budget-btn')) return;
+      setFilter(cat.id);
+    };
     card.innerHTML = `
-      <button class="edit-budget-btn" onclick="openModal('${cat.id}')" title="Set Budget">✎</button>
+      <button class="edit-budget-btn" onclick="event.stopPropagation();openBudgetModal('${cat.id}')" title="Edit Category">✎</button>
       <div class="cat-icon">${cat.icon}</div>
       <div class="cat-name">${cat.label}</div>
-      <div class="spent-amount amount-${cat.id}">${fmt(s)}</div>
+      <div class="spent-amount" style="color:${cat.color}">${fmt(s)}</div>
       <div class="budget-info">of ${fmt(budget)}</div>
       <div class="remaining ${status}">
         ${remaining >= 0 ? 'เหลือ ' + fmt(remaining) : 'เกิน ' + fmt(Math.abs(remaining))}
       </div>
       <div class="progress-bar">
-        <div class="progress-fill ${status}" style="width:${Math.min(pct*100,100)}%"></div>
+        <div class="progress-fill ${status}" style="width:${Math.min(pct*100,100)}%;background:${status==='over'?'var(--danger)':status==='warn'?'var(--warn)':cat.color}"></div>
       </div>
     `;
     grid.appendChild(card);
   });
 
+  // Add Category card
+  const addCard = document.createElement('div');
+  addCard.className = 'add-cat-card';
+  addCard.onclick = () => openAddCategoryModal();
+  addCard.innerHTML = `<div class="plus">+</div><div>NEW CATEGORY</div>`;
+  grid.appendChild(addCard);
+
   document.getElementById('totalSpent').textContent = fmt(totalSpent);
+  document.getElementById('totalBudget').textContent = 'of ' + fmt(totalBudget);
 }
 
 function renderTxList() {
   const list = document.getElementById('txList');
-  const txs = getMonthTxs(currentMonth).sort((a,b) => b.date.localeCompare(a.date));
+  let txs = getMonthTxs(currentMonth);
+  if (dashboardFilter !== 'all') {
+    txs = txs.filter(tx => tx.cat === dashboardFilter);
+  }
+  txs = txs.sort((a,b) => b.date.localeCompare(a.date));
   document.getElementById('logMonth').textContent = getMonthLabel(currentMonth);
 
   if (txs.length === 0) {
-    list.innerHTML = '<div class="empty-state">NO TRANSACTIONS THIS MONTH</div>';
+    list.innerHTML = '<div class="empty-state">NO TRANSACTIONS' + (dashboardFilter !== 'all' ? ' FOR THIS CATEGORY' : ' THIS MONTH') + '</div>';
     return;
   }
 
   list.innerHTML = '';
   txs.forEach(tx => {
-    const cat = CATEGORIES.find(c => c.id === tx.cat) || CATEGORIES[4];
+    const cat = CATEGORIES.find(c => c.id === tx.cat) || { id: 'unknown', label: tx.cat, icon: '❓', color: '#6b6b8a' };
     const item = document.createElement('div');
-    item.className = 'tx-item';
+    item.className = 'tx-item editable';
     const dateStr = tx.date.slice(5).replace('-', '/');
     item.innerHTML = `
       <div class="tx-date">${dateStr}</div>
       <div class="tx-detail">${tx.detail || '—'}</div>
-      <div class="tx-cat cat-${cat.id}">${cat.icon} ${cat.label}</div>
-      <div class="tx-amount amount-${cat.id}">${fmt(tx.amount)}</div>
-      <button class="delete-btn" onclick="deleteTransaction('${tx.id}')">✕</button>
+      <div class="tx-cat" style="background:${cat.color}20;color:${cat.color}">${cat.icon} ${cat.label}</div>
+      <div class="tx-amount" style="color:${cat.color}">${fmt(tx.amount)}</div>
+      <button class="edit-btn" onclick="openEditTxModal('${tx.id}')" title="Edit">✎</button>
+      <button class="delete-btn" onclick="deleteTransaction('${tx.id}')" title="Delete">✕</button>
     `;
     list.appendChild(item);
   });
@@ -971,7 +1164,9 @@ function renderTxList() {
 
 function render() {
   document.getElementById('currentMonthLabel').textContent = getMonthLabel(currentMonth);
+  renderCatSelect(document.getElementById('txCat').value);
   renderMonthBar();
+  renderFilterBanner();
   renderBudgetGrid();
   renderTxList();
 }
@@ -995,43 +1190,215 @@ function addTransaction() {
   document.getElementById('txDetail').value = '';
   document.getElementById('txAmount').value = '';
 
-  // Switch to the transaction's month
   currentMonth = date.slice(0,7);
   render();
 }
 
 function deleteTransaction(id) {
+  if (!confirm('ลบ transaction นี้?')) return;
   let txs = loadTransactions();
   txs = txs.filter(tx => tx.id !== id);
   saveTransactions(txs);
   render();
 }
 
-function openModal(catId) {
+// ─── MODAL: EDIT BUDGET / EDIT CATEGORY ──────────────────────
+function openBudgetModal(catId) {
   editingCat = catId;
   const cat = CATEGORIES.find(c => c.id === catId);
   const budgets = loadBudgets();
-  document.getElementById('modalCatName').textContent = cat.icon + ' ' + cat.label;
-  document.getElementById('modalBudgetInput').value = budgets[catId] || cat.defaultBudget;
+  const isDefault = DEFAULT_CATEGORIES.some(c => c.id === catId);
+
+  const modal = document.getElementById('modalContent');
+  modal.innerHTML = `
+    <h3>// Edit Category</h3>
+    <div style="font-size:22px;margin-bottom:12px">${cat.icon} ${cat.label}</div>
+
+    <div class="modal-field-label">Icon (emoji)</div>
+    <input type="text" class="input-field" id="mCatIcon" value="${cat.icon}" maxlength="4">
+
+    <div class="modal-field-label">Name</div>
+    <input type="text" class="input-field" id="mCatLabel" value="${cat.label}">
+
+    <div class="modal-field-label">Budget (฿)</div>
+    <input type="number" class="input-field" id="mCatBudget" value="${budgets[catId] ?? cat.defaultBudget}">
+
+    <div class="modal-field-label">Color</div>
+    <div class="color-picker" id="mColorPicker"></div>
+
+    <div class="modal-row">
+      <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+      ${!isDefault ? `<button class="cancel-btn" style="color:var(--danger);border-color:var(--danger)" onclick="deleteCategory('${catId}')">Delete</button>` : ''}
+      <button class="save-btn" onclick="saveCategoryEdit()">Save</button>
+    </div>
+  `;
+  renderColorPicker(cat.color);
   document.getElementById('modalOverlay').style.display = 'flex';
-  document.getElementById('modalBudgetInput').focus();
+}
+
+function renderColorPicker(selected) {
+  const picker = document.getElementById('mColorPicker');
+  picker.innerHTML = '';
+  CUSTOM_COLORS.forEach(color => {
+    const dot = document.createElement('div');
+    dot.className = 'color-dot' + (color === selected ? ' selected' : '');
+    dot.style.background = color;
+    dot.onclick = () => {
+      picker.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+      dot.classList.add('selected');
+      dot.dataset.selectedColor = color;
+      picker.dataset.color = color;
+    };
+    picker.appendChild(dot);
+  });
+  picker.dataset.color = selected;
+}
+
+function saveCategoryEdit() {
+  const icon = document.getElementById('mCatIcon').value.trim() || '📦';
+  const label = document.getElementById('mCatLabel').value.trim() || 'Untitled';
+  const budget = parseFloat(document.getElementById('mCatBudget').value) || 0;
+  const color = document.getElementById('mColorPicker').dataset.color;
+
+  const cat = CATEGORIES.find(c => c.id === editingCat);
+  if (cat) {
+    cat.icon = icon;
+    cat.label = label;
+    cat.color = color;
+    saveCategories();
+    const budgets = loadBudgets();
+    budgets[editingCat] = budget;
+    saveBudgets(budgets);
+  }
+  closeModal();
+  render();
+}
+
+function deleteCategory(catId) {
+  const txsInCat = loadTransactions().filter(tx => tx.cat === catId).length;
+  const msg = txsInCat > 0
+    ? `Category นี้มี ${txsInCat} transactions — transactions จะยังอยู่แต่ไม่มีหมวด ต้องการลบ?`
+    : 'ลบ category นี้?';
+  if (!confirm(msg)) return;
+  CATEGORIES = CATEGORIES.filter(c => c.id !== catId);
+  saveCategories();
+  if (dashboardFilter === catId) dashboardFilter = 'all';
+  closeModal();
+  render();
+}
+
+// ─── MODAL: ADD CATEGORY ──────────────────────────────────────
+function openAddCategoryModal() {
+  const modal = document.getElementById('modalContent');
+  const randomColor = CUSTOM_COLORS[Math.floor(Math.random()*CUSTOM_COLORS.length)];
+  modal.innerHTML = `
+    <h3>// New Category</h3>
+
+    <div class="modal-field-label">Icon (emoji)</div>
+    <input type="text" class="input-field" id="mNewIcon" placeholder="🎯" maxlength="4">
+
+    <div class="modal-field-label">Name</div>
+    <input type="text" class="input-field" id="mNewLabel" placeholder="e.g. Entertainment">
+
+    <div class="modal-field-label">Budget (฿)</div>
+    <input type="number" class="input-field" id="mNewBudget" placeholder="5000" value="5000">
+
+    <div class="modal-field-label">Color</div>
+    <div class="color-picker" id="mColorPicker"></div>
+
+    <div class="modal-row">
+      <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+      <button class="save-btn" onclick="saveNewCategory()">Create</button>
+    </div>
+  `;
+  renderColorPicker(randomColor);
+  document.getElementById('modalOverlay').style.display = 'flex';
+  document.getElementById('mNewLabel').focus();
+}
+
+function saveNewCategory() {
+  const icon = document.getElementById('mNewIcon').value.trim() || '📦';
+  const label = document.getElementById('mNewLabel').value.trim();
+  const budget = parseFloat(document.getElementById('mNewBudget').value) || 0;
+  const color = document.getElementById('mColorPicker').dataset.color;
+  if (!label) { alert('กรอกชื่อ category'); return; }
+
+  // Generate unique id
+  const baseId = label.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20) || 'cat';
+  let id = baseId;
+  let i = 1;
+  while (CATEGORIES.some(c => c.id === id)) id = baseId + '_' + (++i);
+
+  CATEGORIES.push({ id, label, icon, color, defaultBudget: budget });
+  saveCategories();
+  const budgets = loadBudgets();
+  budgets[id] = budget;
+  saveBudgets(budgets);
+  closeModal();
+  render();
+}
+
+// ─── MODAL: EDIT TRANSACTION ──────────────────────────────────
+function openEditTxModal(txId) {
+  const tx = loadTransactions().find(t => t.id === txId);
+  if (!tx) return;
+  editingTxId = txId;
+
+  const modal = document.getElementById('modalContent');
+  const catOptions = CATEGORIES.map(c =>
+    `<option value="${c.id}" ${c.id === tx.cat ? 'selected' : ''}>${c.icon} ${c.label}</option>`
+  ).join('');
+
+  modal.innerHTML = `
+    <h3>// Edit Transaction</h3>
+
+    <div class="modal-field-label">Date</div>
+    <input type="date" class="input-field" id="mEditDate" value="${tx.date.slice(0,10)}">
+
+    <div class="modal-field-label">Detail</div>
+    <input type="text" class="input-field" id="mEditDetail" value="${(tx.detail || '').replace(/"/g,'&quot;')}">
+
+    <div class="modal-field-label">Category</div>
+    <select class="input-field" id="mEditCat">${catOptions}</select>
+
+    <div class="modal-field-label">Amount (฿)</div>
+    <input type="number" class="input-field" id="mEditAmount" value="${tx.amount}" step="0.01">
+
+    <div class="modal-row">
+      <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+      <button class="save-btn" onclick="saveEditTx()">Save</button>
+    </div>
+  `;
+  document.getElementById('modalOverlay').style.display = 'flex';
+}
+
+function saveEditTx() {
+  const date = document.getElementById('mEditDate').value;
+  const detail = document.getElementById('mEditDetail').value.trim();
+  const cat = document.getElementById('mEditCat').value;
+  const amount = parseFloat(document.getElementById('mEditAmount').value);
+
+  if (!date || !amount || isNaN(amount)) { alert('กรอกข้อมูลให้ครบ'); return; }
+
+  const txs = loadTransactions();
+  const tx = txs.find(t => t.id === editingTxId);
+  if (tx) {
+    tx.date = date;
+    tx.detail = detail;
+    tx.cat = cat;
+    tx.amount = amount;
+    saveTransactions(txs);
+  }
+  closeModal();
+  render();
 }
 
 function closeModal(e) {
   if (!e || e.target === document.getElementById('modalOverlay')) {
     document.getElementById('modalOverlay').style.display = 'none';
     editingCat = null;
+    editingTxId = null;
   }
-}
-
-function saveBudget() {
-  const val = parseFloat(document.getElementById('modalBudgetInput').value);
-  if (!val || isNaN(val)) return;
-  const budgets = loadBudgets();
-  budgets[editingCat] = val;
-  saveBudgets(budgets);
-  closeModal();
-  render();
 }
 
 // Initialize date to today
@@ -1095,13 +1462,11 @@ function setChartFilter(cat) {
 }
 
 // ─── CHART DATA PREP ──────────────────────────────────────────
-const CAT_COLORS = {
-  food:     '#ff8585',
-  vitamin:  '#4ecdc4',
-  shopping: '#7c6af7',
-  cosmetic: '#ff6bb2',
-  other:    '#ffd93d',
-};
+function getCatColor(id) {
+  const cat = CATEGORIES.find(c => c.id === id);
+  return cat?.color || '#6b6b8a';
+}
+const CAT_COLORS = new Proxy({}, { get: (_, id) => getCatColor(id) });
 
 function getChartMonths() {
   // Last 6 months
