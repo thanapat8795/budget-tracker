@@ -1021,6 +1021,7 @@ function loadTransactions() {
 
 function saveTransactions(txs) {
   localStorage.setItem('transactions', JSON.stringify(txs));
+  localStorage.setItem('pending_push', '1'); // mark as dirty
   schedulePush(txs);
 }
 
@@ -1028,8 +1029,8 @@ function saveTransactions(txs) {
 function setSyncStatus(state, msg) {
   const el = document.getElementById('syncStatus');
   if (!el) return;
-  const icons = { syncing: '⟳', ok: '✓', error: '✕', idle: '☁' };
-  const colors = { syncing: 'var(--warn)', ok: 'var(--accent2)', error: 'var(--danger)', idle: 'var(--muted)' };
+  const icons = { syncing: '⟳', ok: '✓', error: '✕', idle: '☁', pending: '●' };
+  const colors = { syncing: 'var(--warn)', ok: 'var(--accent2)', error: 'var(--danger)', idle: 'var(--muted)', pending: 'var(--warn)' };
   el.textContent = icons[state] + ' ' + msg;
   el.style.color = colors[state];
   if (state === 'syncing') el.style.animation = 'spin 1s linear infinite';
@@ -1042,8 +1043,13 @@ async function manualSync() {
   btn.className = 'sync-btn syncing';
   btn.disabled = true;
 
+  // Always push pending changes first
+  if (localStorage.getItem('pending_push') === '1') {
+    await pushToSheets(loadTransactions(), true);
+  }
+
   const sheetData = await pullFromSheets();
-  if (sheetData && sheetData.length > 0) {
+  if (sheetData !== null) {
     btn.textContent = '✓ Synced!';
     btn.className = 'sync-btn success';
     render();
@@ -1062,31 +1068,45 @@ async function manualSync() {
 // ─── PUSH TO SHEETS ───────────────────────────────────────────
 function schedulePush(txs) {
   clearTimeout(syncTimeout);
-  setSyncStatus('syncing', 'Syncing...');
+  setSyncStatus('pending', 'Unsaved changes');
   syncTimeout = setTimeout(() => pushToSheets(txs), 800);
 }
 
-async function pushToSheets(txs) {
+async function pushToSheets(txs, awaitResult = false) {
+  setSyncStatus('syncing', 'Syncing...');
   try {
     await fetch(SHEETS_URL, {
       method: 'POST',
       body: JSON.stringify({ action: 'save_all', data: txs }),
     });
+    localStorage.removeItem('pending_push'); // clear dirty flag on success
     setSyncStatus('ok', 'Synced');
     setTimeout(() => setSyncStatus('idle', 'Google Sheets'), 2500);
+    return true;
   } catch (err) {
-    setSyncStatus('error', 'Sync failed');
+    setSyncStatus('error', 'Sync failed — will retry');
+    // Keep pending_push flag so next sync can retry
+    return false;
   }
 }
 
 // ─── PULL FROM SHEETS ─────────────────────────────────────────
 async function pullFromSheets() {
+  // SAFETY: Never pull if we have unpushed local changes
+  if (localStorage.getItem('pending_push') === '1') {
+    console.warn('Skipping pull — pending local changes exist');
+    const pushed = await pushToSheets(loadTransactions(), true);
+    if (!pushed) {
+      setSyncStatus('error', 'Keep local — unsaved changes');
+      return null;
+    }
+  }
+
   setSyncStatus('syncing', 'Loading...');
   try {
     const res = await fetch(SHEETS_URL);
     const txs = await res.json();
-    if (Array.isArray(txs) && txs.length > 0) {
-      // Normalize date - strip any ISO timestamp to YYYY-MM-DD
+    if (Array.isArray(txs)) {
       const cleaned = txs.map(tx => ({
         ...tx,
         date: String(tx.date || '').slice(0, 10),
@@ -1532,36 +1552,40 @@ document.getElementById('txAmount').addEventListener('keydown', e => {
   if (e.key === 'Enter') addTransaction();
 });
 
-// Pre-load April 2026 data from screenshot
+// Pre-load April 2026 data from screenshot (ONLY on first ever open)
 function seedInitialData() {
-  // Force re-seed with correct year (clear old 2025 data)
-  if (!localStorage.getItem('seeded_v2')) {
-    localStorage.removeItem('transactions');
-    localStorage.removeItem('seeded');
-    const seed = [
-      { id: '1', date: '2026-04-02', detail: '', cat: 'food', amount: 445 },
-      { id: '2', date: '2026-04-03', detail: 'Taro', cat: 'food', amount: 1404 },
-      { id: '3', date: '2026-04-03', detail: 'Taro', cat: 'shopping', amount: 141.55 },
-      { id: '4', date: '2026-04-04', detail: 'TFB Payment Credit card', cat: 'food', amount: 4070 },
-      { id: '5', date: '2026-04-04', detail: 'TFB Payment Credit card', cat: 'shopping', amount: 300 },
-      { id: '6', date: '2026-04-05', detail: 'Shell oil', cat: 'food', amount: 612.04 },
-      { id: '7', date: '2026-04-05', detail: 'Shell oil', cat: 'shopping', amount: 1243 },
-      { id: '8', date: '2026-04-06', detail: 'Marko', cat: 'food', amount: 540 },
-      { id: '9', date: '2026-04-06', detail: 'Marko', cat: 'shopping', amount: 1275 },
-      { id: '10', date: '2026-04-06', detail: 'Boot/Better Vision/oil', cat: 'food', amount: 285 },
-      { id: '11', date: '2026-04-06', detail: 'Boot/Better Vision/oil', cat: 'shopping', amount: 226.1 },
-      { id: '12', date: '2026-04-07', detail: 'AGoda', cat: 'food', amount: 647.35 },
-      { id: '13', date: '2026-04-07', detail: 'AGoda', cat: 'shopping', amount: 419 },
-      { id: '14', date: '2026-04-09', detail: 'Janpan', cat: 'food', amount: 120 },
-      { id: '15', date: '2026-04-10', detail: 'Janpan', cat: 'food', amount: 180 },
-      { id: '16', date: '2026-04-11', detail: 'Janpan', cat: 'food', amount: 3364 },
-      { id: '17', date: '2026-04-12', detail: 'Janpan', cat: 'food', amount: 2174.6 },
-      { id: '18', date: '2026-04-16', detail: 'Maesirean', cat: 'food', amount: 555 },
-      { id: '19', date: '2026-04-17', detail: 'Dinner at taro', cat: 'food', amount: 2823 },
-    ];
-    saveTransactions(seed);
+  // If already seeded OR has any transactions OR has pending changes, skip
+  if (localStorage.getItem('seeded_v2')) return;
+  const existing = localStorage.getItem('transactions');
+  if (existing && existing !== '[]' && existing !== 'null') {
     localStorage.setItem('seeded_v2', '1');
+    return;
   }
+  if (localStorage.getItem('pending_push') === '1') return;
+
+  const seed = [
+    { id: '1', date: '2026-04-02', detail: '', cat: 'food', amount: 445 },
+    { id: '2', date: '2026-04-03', detail: 'Taro', cat: 'food', amount: 1404 },
+    { id: '3', date: '2026-04-03', detail: 'Taro', cat: 'shopping', amount: 141.55 },
+    { id: '4', date: '2026-04-04', detail: 'TFB Payment Credit card', cat: 'food', amount: 4070 },
+    { id: '5', date: '2026-04-04', detail: 'TFB Payment Credit card', cat: 'shopping', amount: 300 },
+    { id: '6', date: '2026-04-05', detail: 'Shell oil', cat: 'food', amount: 612.04 },
+    { id: '7', date: '2026-04-05', detail: 'Shell oil', cat: 'shopping', amount: 1243 },
+    { id: '8', date: '2026-04-06', detail: 'Marko', cat: 'food', amount: 540 },
+    { id: '9', date: '2026-04-06', detail: 'Marko', cat: 'shopping', amount: 1275 },
+    { id: '10', date: '2026-04-06', detail: 'Boot/Better Vision/oil', cat: 'food', amount: 285 },
+    { id: '11', date: '2026-04-06', detail: 'Boot/Better Vision/oil', cat: 'shopping', amount: 226.1 },
+    { id: '12', date: '2026-04-07', detail: 'AGoda', cat: 'food', amount: 647.35 },
+    { id: '13', date: '2026-04-07', detail: 'AGoda', cat: 'shopping', amount: 419 },
+    { id: '14', date: '2026-04-09', detail: 'Janpan', cat: 'food', amount: 120 },
+    { id: '15', date: '2026-04-10', detail: 'Janpan', cat: 'food', amount: 180 },
+    { id: '16', date: '2026-04-11', detail: 'Janpan', cat: 'food', amount: 3364 },
+    { id: '17', date: '2026-04-12', detail: 'Janpan', cat: 'food', amount: 2174.6 },
+    { id: '18', date: '2026-04-16', detail: 'Maesirean', cat: 'food', amount: 555 },
+    { id: '19', date: '2026-04-17', detail: 'Dinner at taro', cat: 'food', amount: 2823 },
+  ];
+  localStorage.setItem('transactions', JSON.stringify(seed));
+  localStorage.setItem('seeded_v2', '1');
 }
 
 // ─── VIEW SWITCHING ───────────────────────────────────────────
@@ -2011,6 +2035,33 @@ function parseReceipt(text) {
 // Redraw chart on resize
 window.addEventListener('resize', () => { if (currentView === 'chart') renderChart(); });
 
+// ─── AUTO-SYNC ON APP VISIBILITY CHANGE ──────────────────────
+// When user returns to PWA/tab, flush pending pushes BEFORE pulling
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible') {
+    // If pending changes exist, push them first
+    if (localStorage.getItem('pending_push') === '1') {
+      const pushed = await pushToSheets(loadTransactions(), true);
+      if (!pushed) return; // don't pull if push failed
+    }
+    // Pull latest from Sheets (may have been updated from another device)
+    const sheetData = await pullFromSheets();
+    if (sheetData !== null) render();
+  }
+});
+
+// ─── WARN BEFORE LEAVING IF UNSAVED ───────────────────────────
+window.addEventListener('beforeunload', (e) => {
+  if (localStorage.getItem('pending_push') === '1') {
+    // Try synchronous push using sendBeacon (works even during unload)
+    const txs = loadTransactions();
+    try {
+      navigator.sendBeacon(SHEETS_URL, JSON.stringify({ action: 'save_all', data: txs }));
+      localStorage.removeItem('pending_push');
+    } catch {}
+  }
+});
+
 // ─── INIT: Pull from Sheets → seed if empty → render ─────────
 async function init() {
   currentMonth = '2026-04';
@@ -2022,15 +2073,18 @@ async function init() {
     localStorage.setItem('transactions', JSON.stringify(cleaned));
   }
 
-  // Show local data immediately (fast render)
+  // Only seed if truly empty (first launch ever)
   seedInitialData();
   render();
 
-  // Then pull latest from Sheets and re-render
-  const sheetData = await pullFromSheets();
-  if (sheetData && sheetData.length > 0) {
-    render();
+  // Flush any pending changes first before pulling
+  if (localStorage.getItem('pending_push') === '1') {
+    await pushToSheets(loadTransactions(), true);
   }
+
+  // Pull latest
+  const sheetData = await pullFromSheets();
+  if (sheetData !== null) render();
 }
 
 init();
